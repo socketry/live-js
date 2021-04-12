@@ -1,0 +1,35 @@
+{
+  "name": "@socketry/live",
+  "version": "0.1.0",
+  "description": "Live HTML tags for Ruby.",
+  "main": "dist/live.js",
+  "scripts": {
+    "build": "npm run rollup && npm run minify",
+    "rollup": "rollup src/index.js -o dist/live.js --name live --format iife",
+    "minify": "uglifyjs ./dist/live.js -o ./dist/live.min.js",
+    "prepublish": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/socketry/live-js.git"
+  },
+  "devDependencies": {
+    "rollup": "^1.4.1",
+    "uglify-js": "^3.7.0"
+  },
+  "dependencies": {
+    "morphdom": "^2.6.1"
+  },
+  "keywords": [
+    "live",
+    "dynamic",
+    "html",
+    "ruby"
+  ],
+  "author": "Samuel Williams <samuel.williams@oriontransfer.co.nz> (http://www.codeotaku.com/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/socketry/live-js/issues"
+  },
+  "homepage": "https://github.com/socketry/live-js#readme"
+}
