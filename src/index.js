@@ -89,9 +89,9 @@ class Live {
 		}
 	}
 	
-	bindElementsByClassName(className = 'live') {
+	bindElementsByClassName(selector = 'live') {
 		this.bind(
-			this.document.getElementsByClassName(className)
+			this.document.getElementsByClassName(selector)
 		);
 		
 		this.flush();
@@ -106,7 +106,7 @@ class Live {
 	}
 }
 
-let url = new URL('live', window.location.href);
+let url = new URL('live', location.href);
 url.protocol = url.protocol.replace('http', 'ws');
 
 let live = new Live(document, url);
