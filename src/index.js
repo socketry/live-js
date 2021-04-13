@@ -1,4 +1,3 @@
-
 class Live {
 	constructor(document, url) {
 		this.document = document;
@@ -7,31 +6,42 @@ class Live {
 		this.events = [];
 		
 		this.failures = 0;
+		
+		// Track visibility state and connect if required:
+		this.document.addEventListener("visibilitychange", () => this.handleVisibilityChange());
+		this.handleVisibilityChange();
 	}
 	
 	connect() {
 		if (this.server) return;
 		
-		let server = new WebSocket(this.url.href);
-		this.server = server;
+		let server = this.server = new WebSocket(this.url.href);
 		
 		server.onopen = () => {
 			this.failures = 0;
 			this.attach();
-		}
+		};
 		
 		server.onmessage = (message) => this.handle(JSON.parse(message.data));
 		
 		server.onerror = () => {
 			this.failures += 1;
-			server.close();
-		}
+		};
 		
+		// The remote end has disconnected:
 		server.onclose = () => {
 			this.server = null;
+			
 			let delay = 100 * this.failures ** 2;
 			setTimeout(() => this.connect(), delay > 60000 ? 60000 : delay);
 		};
+	}
+	
+	disconnect() {
+		if (this.server) {
+			this.server.close();
+			this.server = null;
+		}
 	}
 	
 	handle(message) {
@@ -47,7 +57,7 @@ class Live {
 			if (event) {
 				element.dispatchEvent(
 					new CustomEvent(event.type, event)
-				)
+				);
 			}
 		}
 	}
@@ -61,14 +71,14 @@ class Live {
 	}
 	
 	forward(id, event, details) {
-		this.trigger(id, {type: event.type, details: details})
+		this.trigger(id, {type: event.type, details: details});
 	}
 	
 	send(message) {
 		try {
 			this.server.send(message);
 		} catch (error) {
-			this.events.push(message)
+			this.events.push(message);
 		}
 	}
 	
@@ -97,9 +107,17 @@ class Live {
 		this.flush();
 	}
 	
+	handleVisibilityChange() {
+		if (document.hidden) {
+			this.disconnect();
+		} else {
+			this.connect();
+		}
+	}
+	
 	attach() {
 		if (this.document.readyState === 'loading') {
-			this.document.addEventListener('DOMContentLoaded', this.bindElementsByClassName);
+			this.document.addEventListener('DOMContentLoaded', () => this.bindElementsByClassName());
 		} else {
 			this.bindElementsByClassName();
 		}
@@ -110,6 +128,5 @@ let url = new URL('live', location.href);
 url.protocol = url.protocol.replace('http', 'ws');
 
 let live = new Live(document, url);
-live.connect();
 
 export default live;
