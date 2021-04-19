@@ -36,7 +36,8 @@ class Live {
 		server.onclose = () => {
 			this.server = null;
 			
-			let delay = 100 * this.failures ** 2;
+			// We need a minimum delay otherwise this can end up immediately invoking the callback:
+			let delay = 100 * (this.failures + 1) ** 2;
 			setTimeout(() => this.connect(), delay > 60000 ? 60000 : delay);
 		};
 	}
