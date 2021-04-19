@@ -22,7 +22,11 @@ class Live {
 			this.attach();
 		};
 		
-		server.onmessage = (message) => this.handle(JSON.parse(message.data));
+		server.onmessage = (message) => {
+			const [name, _arguments] = JSON.parse(message.data);
+			
+			this[name](..._arguments);
+		};
 		
 		server.onerror = () => {
 			this.failures += 1;
@@ -44,22 +48,37 @@ class Live {
 		}
 	}
 	
-	handle(message) {
-		if (message.id) {
-			let element = document.getElementById(message.id);
-			
-			let html = message.html;
-			if (html) {
-				morphdom(element, html);
-			}
-			
-			let event = message.event;
-			if (event) {
-				element.dispatchEvent(
-					new CustomEvent(event.type, event)
-				);
-			}
-		}
+	createDocumentFragment(html) {
+		return this.document.createRange().createContextualFragment(html);
+	}
+	
+	// These methods are designed for RPC.
+	replace(id, html) {
+		let element = document.getElementById(id);
+		
+		morphdom(element, html);
+	}
+	
+	prepend(id, html) {
+		let element = document.getElementById(id);
+		let fragment = this.createDocumentFragment(html);
+		
+		element.prepend(fragment);
+	}
+	
+	append(id, html) {
+		let element = document.getElementById(id);
+		let fragment = this.createDocumentFragment(html);
+		
+		element.append(fragment);
+	}
+	
+	dispatch(id, type, details) {
+		let element = document.getElementById(id);
+		
+		element.dispatchEvent(
+			new CustomEvent(type, details)
+		);
 	}
 	
 	trigger(id, event) {
