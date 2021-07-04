@@ -142,6 +142,17 @@ class Live {
 			this.bindElementsByClassName();
 		}
 	}
+  serialise(id) {
+    let formData = new FormData(document.getElementById(id));
+    var map = new Map(formData.entries());
+    return [...map];
+  }
+
+  handleForm(id, event, details = "none") {
+    event.preventDefault();
+    let formData = this.serialise(id);
+    this.forward(id, event, JSON.stringify([details, formData]));
+  }
 }
 
 let url = new URL('live', location.href);
