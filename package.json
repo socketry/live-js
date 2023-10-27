@@ -1,6 +1,6 @@
 {
   "name": "@socketry/live",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Live HTML tags for Ruby.",
   "main": "dist/live.js",
   "scripts": {
