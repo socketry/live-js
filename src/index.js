@@ -1,3 +1,5 @@
+var morphdom = require('morphdom');
+
 class Live {
 	constructor(document, url) {
 		this.document = document;
