@@ -3,7 +3,7 @@ import {ok} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
-import {Live} from '../src/Live.js';
+import {Live} from '../Live.js';
 
 describe('Live', function () {
 	let dom;
