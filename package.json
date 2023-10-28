@@ -1,21 +1,19 @@
 {
   "name": "@socketry/live",
+  "type": "module",
   "version": "0.3.1",
   "description": "Live HTML tags for Ruby.",
-  "main": "dist/live.js",
-  "scripts": {
-    "build": "npm run rollup && npm run minify",
-    "rollup": "rollup src/index.js -o dist/live.js --name live --format iife",
-    "minify": "uglifyjs ./dist/live.js -o ./dist/live.min.js",
-    "prepublish": "npm run build"
-  },
+  "main": "src/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/socketry/live-js.git"
   },
+  "scripts": {
+    "test": "node --test"
+  },
   "devDependencies": {
-    "rollup": "^1.4.1",
-    "uglify-js": "^3.7.0"
+    "jsdom": "^22.1.0",
+    "ws": "^8.14.2"
   },
   "dependencies": {
     "morphdom": "^2.6.1"
