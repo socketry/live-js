@@ -2,6 +2,17 @@
 import morphdom from 'morphdom';
 
 export class Live {
+	static start(options = {}) {
+		let window = options.window || globalThis;
+		let path = options.path || 'live'
+		let base = options.base || window.location.href;
+		
+		let url = new URL(path, base);
+		url.protocol = url.protocol.replace('http', 'ws');
+		
+		return new this(window, url);
+	}
+	
 	constructor(window, url) {
 		this.window = window;
 		this.document = window.document;

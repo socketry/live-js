@@ -1,5 +1,5 @@
 import {describe, before, after, it} from 'node:test';
-import {ok} from 'node:assert';
+import {ok, strict, strictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
@@ -24,17 +24,27 @@ describe('Live', function () {
 		
 		await new Promise(resolve => dom.window.addEventListener('load', resolve));
 		await listening;
-		
-		live = new Live(dom.window, webSocketServerURL);
 	});
-
+	
 	after(function () {
 		webSocketServer.close();
 	});
-
+	
+	it('should start the live connection', function () {
+		const live = Live.start({window: dom.window, base: 'http://localhost/'});
+		ok(live);
+		
+		strictEqual(live.window, dom.window);
+		strictEqual(live.document, dom.window.document);
+		strictEqual(live.url.href, 'ws://localhost/live');
+	});
+	
 	it('should connect to the WebSocket server', function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
 		const server = live.connect();
 		ok(server);
+		
 		live.disconnect();
 	});
 });

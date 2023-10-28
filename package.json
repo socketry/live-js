@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.5.0",
   "description": "Live HTML tags for Ruby.",
-  "main": "index.js",
+  "main": "Live.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/socketry/live-js.git"
