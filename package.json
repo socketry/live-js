@@ -12,11 +12,11 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "jsdom": "^22.1.0",
-    "ws": "^8.14.2"
+    "jsdom": "^24.0",
+    "ws": "^8.17"
   },
   "dependencies": {
-    "morphdom": "^2.6.1"
+    "morphdom": "^2.7"
   },
   "keywords": [
     "live",

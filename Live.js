@@ -27,6 +27,8 @@ export class Live {
 		this.handleVisibilityChange();
 	}
 	
+	// -- Connection Handling --
+	
 	connect() {
 		if (this.server) return this.server;
 		
@@ -38,7 +40,7 @@ export class Live {
 		};
 		
 		server.onmessage = (message) => {
-			const [name, _arguments] = JSON.parse(message.data);
+			const [name, ..._arguments] = JSON.parse(message.data);
 			
 			this[name](..._arguments);
 		};
@@ -68,51 +70,6 @@ export class Live {
 			this.server = null;
 			server.close();
 		}
-	}
-	
-	createDocumentFragment(html) {
-		return this.document.createRange().createContextualFragment(html);
-	}
-	
-	// These methods are designed for RPC.
-	replace(id, html) {
-		let element = this.document.getElementById(id);
-		
-		morphdom(element, html);
-	}
-	
-	prepend(id, html) {
-		let element = this.document.getElementById(id);
-		let fragment = this.createDocumentFragment(html);
-		
-		element.prepend(fragment);
-	}
-	
-	append(id, html) {
-		let element = this.document.getElementById(id);
-		let fragment = this.createDocumentFragment(html);
-		
-		element.append(fragment);
-	}
-	
-	dispatch(id, type, details) {
-		let element = this.document.getElementById(id);
-		
-		element.dispatchEvent(
-			new CustomEvent(type, details)
-		);
-	}
-	
-	trigger(id, event) {
-		this.connect();
-		
-		this.send(
-			JSON.stringify({id: id, event: event})
-		);
-	}
-	
-	forward(id, event, details) {
-		this.trigger(id, {type: event.type, details: details});
 	}
 	
 	send(message) {
@@ -162,5 +119,92 @@ export class Live {
 		} else {
 			this.bindElementsByClassName();
 		}
+	}
+	
+	createDocumentFragment(html) {
+		return this.document.createRange().createContextualFragment(html);
+	}
+	
+	reply(payload) {
+		this.send(JSON.stringify(payload));
+	}
+	
+	// -- RPC Methods --
+	
+	update(id, html, options) {
+		let element = this.document.getElementById(id);
+		let fragment = this.createDocumentFragment(html);
+		
+		morphdom(element, fragment);
+		
+		if (options.reply) this.reply({reply: options.reply});
+	}
+	
+	replace(selector, html, options) {
+		let elements = this.document.querySelectorAll(selector);
+		let fragment = this.createDocumentFragment(html);
+		
+		elements.forEach(element => morphdom(element, fragment.cloneNode(true)));
+		
+		if (options.reply) this.reply({reply: options.reply});
+	}
+	
+	prepend(selector, html, options) {
+		let elements = this.document.querySelectorAll(selector);
+		let fragment = this.createDocumentFragment(html);
+		
+		elements.forEach(element => element.prepend(fragment.cloneNode(true)));
+		
+		if (options.reply) this.reply({reply: options.reply});
+	}
+	
+	append(selector, html, options) {
+		let elements = this.document.querySelectorAll(selector);
+		let fragment = this.createDocumentFragment(html);
+		
+		elements.forEach(element => element.append(fragment.cloneNode(true)));
+		
+		if (options.reply) this.reply({reply: options.reply});
+	}
+	
+	remove(selector, options) {
+		let elements = this.document.querySelectorAll(selector);
+		
+		elements.forEach(element => element.remove());
+		
+		if (options.reply) this.reply({reply: options.reply});
+	}
+	
+	dispatchEvent(selector, type, options) {
+		let element = this.document.querySelector(selector);
+		
+		elements.forEach(element => element.dispatchEvent(
+			new CustomEvent(type, options)
+		));
+	}
+	
+	// -- Event Handling --
+	
+	trigger(id, event) {
+		this.connect();
+		
+		this.send(
+			JSON.stringify({id: id, event: event})
+		);
+	}
+	
+	forward(id, event, detail) {
+		event.preventDefault();
+		
+		this.trigger(id, {type: event.type, detail: detail});
+	}
+	
+	forwardFormData(id, event, detail) {
+		event.preventDefault();
+		
+		let form = event.form;
+		let formData = new FormData(form);
+		
+		this.trigger(id, {type: event.type, detail: detail, formData: [...formData]});
 	}
 }

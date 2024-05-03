@@ -7,7 +7,6 @@ import {Live} from '../Live.js';
 
 describe('Live', function () {
 	let dom;
-	let live;
 	let webSocketServer;
 
 	const webSocketServerConfig = {port: 3000};
@@ -18,11 +17,12 @@ describe('Live', function () {
 			webSocketServer = new WebSocket.Server(webSocketServerConfig, resolve);
 		});
 		
-		dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+		dom = new JSDOM('<!DOCTYPE html><html><body><div id="my"><p>Hello World</p></div></body></html>');
 		// Ensure the WebSocket class is available:
 		dom.window.WebSocket = WebSocket;
 		
 		await new Promise(resolve => dom.window.addEventListener('load', resolve));
+		
 		await listening;
 	});
 	
@@ -44,6 +44,58 @@ describe('Live', function () {
 		
 		const server = live.connect();
 		ok(server);
+		
+		live.disconnect();
+	});
+	
+	it('should handle visibility changes', function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		var hidden = false;
+		Object.defineProperty(dom.window.document, "hidden", {
+			get() {return hidden},
+		});
+		
+		live.handleVisibilityChange();
+		
+		ok(live.server);
+		
+		hidden = true;
+		
+		live.handleVisibilityChange();
+		
+		ok(!live.server);
+	});
+	
+	it('should handle updates', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Hello World</p>');
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				
+				// Only care about the reply message:
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['update', 'my', '<div id="my"><p>Goodbye World!</p></div>', {reply: true}])
+		);
+		
+		await reply;
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
 		
 		live.disconnect();
 	});
