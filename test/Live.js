@@ -72,8 +72,6 @@ describe('Live', function () {
 		
 		live.connect();
 		
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Hello World</p>');
-		
 		const connected = new Promise(resolve => {
 			webSocketServer.on('connection', resolve);
 		});
@@ -83,8 +81,6 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				
-				// Only care about the reply message:
 				if (payload.reply) resolve(payload);
 			});
 		});
@@ -96,6 +92,193 @@ describe('Live', function () {
 		await reply;
 		
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
+		
+		live.disconnect();
+	});
+	
+	it('should handle replacements', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['replace', '#my p', '<p>Replaced!</p>', {reply: true}])
+		);
+		
+		await reply;
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Replaced!</p>');
+		
+		live.disconnect();
+	});
+	
+	it('should handle prepends', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		socket.send(
+			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+		);
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['prepend', '#my', '<p>Prepended!</p>', {reply: true}])
+		);
+		
+		await reply;
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Prepended!</p><p>Middle</p>');
+		
+		live.disconnect();
+	});
+	
+	it('should handle appends', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		socket.send(
+			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+		);
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['append', '#my', '<p>Appended!</p>', {reply: true}])
+		);
+		
+		await reply;
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Middle</p><p>Appended!</p>');
+		
+		live.disconnect();
+	});
+	
+	it ('should handle removals', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		socket.send(
+			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+		);
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['remove', '#my p', {reply: true}])
+		);
+		
+		await reply;
+		
+		strictEqual(dom.window.document.getElementById('my').innerHTML, '');
+		
+		live.disconnect();
+	});
+	
+	it ('can dispatch custom events', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.reply) resolve(payload);
+			});
+		});
+		
+		socket.send(
+			JSON.stringify(['dispatchEvent', '#my', 'click', {reply: true}])
+		);
+		
+		await reply;
+		
+		live.disconnect();
+	});
+	
+	it ('can forward events', async function () {
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload.event) resolve(payload);
+			});
+		});
+		
+		dom.window.document.getElementById('my').addEventListener('click', event => {
+			live.forwardEvent('my', event);
+		});
+		
+		dom.window.document.getElementById('my').click();
+		
+		let payload = await reply;
+		
+		strictEqual(payload.id, 'my');
+		strictEqual(payload.event.type, 'click');
 		
 		live.disconnect();
 	});

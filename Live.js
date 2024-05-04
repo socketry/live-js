@@ -125,8 +125,10 @@ export class Live {
 		return this.document.createRange().createContextualFragment(html);
 	}
 	
-	reply(payload) {
-		this.send(JSON.stringify(payload));
+	reply(options) {
+		if (options && options.reply) {
+			this.send(JSON.stringify({reply: options.reply}));
+		}
 	}
 	
 	// -- RPC Methods --
@@ -137,7 +139,7 @@ export class Live {
 		
 		morphdom(element, fragment);
 		
-		if (options.reply) this.reply({reply: options.reply});
+		this.reply(options);
 	}
 	
 	replace(selector, html, options) {
@@ -146,7 +148,7 @@ export class Live {
 		
 		elements.forEach(element => morphdom(element, fragment.cloneNode(true)));
 		
-		if (options.reply) this.reply({reply: options.reply});
+		this.reply(options);
 	}
 	
 	prepend(selector, html, options) {
@@ -155,7 +157,7 @@ export class Live {
 		
 		elements.forEach(element => element.prepend(fragment.cloneNode(true)));
 		
-		if (options.reply) this.reply({reply: options.reply});
+		this.reply(options);
 	}
 	
 	append(selector, html, options) {
@@ -164,7 +166,7 @@ export class Live {
 		
 		elements.forEach(element => element.append(fragment.cloneNode(true)));
 		
-		if (options.reply) this.reply({reply: options.reply});
+		this.reply(options);
 	}
 	
 	remove(selector, options) {
@@ -172,15 +174,17 @@ export class Live {
 		
 		elements.forEach(element => element.remove());
 		
-		if (options.reply) this.reply({reply: options.reply});
+		this.reply(options);
 	}
 	
 	dispatchEvent(selector, type, options) {
-		let element = this.document.querySelector(selector);
+		let elements = this.document.querySelectorAll(selector);
 		
 		elements.forEach(element => element.dispatchEvent(
-			new CustomEvent(type, options)
+			new this.window.CustomEvent(type, options)
 		));
+		
+		this.reply(options);
 	}
 	
 	// -- Event Handling --
@@ -193,7 +197,7 @@ export class Live {
 		);
 	}
 	
-	forward(id, event, detail) {
+	forwardEvent(id, event, detail) {
 		event.preventDefault();
 		
 		this.trigger(id, {type: event.type, detail: detail});
