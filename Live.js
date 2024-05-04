@@ -189,7 +189,7 @@ export class Live {
 	
 	// -- Event Handling --
 	
-	trigger(id, event) {
+	forward(id, event) {
 		this.connect();
 		
 		this.send(
@@ -200,15 +200,15 @@ export class Live {
 	forwardEvent(id, event, detail) {
 		event.preventDefault();
 		
-		this.trigger(id, {type: event.type, detail: detail});
+		this.forward(id, {type: event.type, detail: detail});
 	}
 	
-	forwardFormData(id, event, detail) {
+	forwardFormEvent(id, event, detail) {
 		event.preventDefault();
 		
 		let form = event.form;
 		let formData = new FormData(form);
 		
-		this.trigger(id, {type: event.type, detail: detail, formData: [...formData]});
+		this.forward(id, {type: event.type, detail: detail, formData: [...formData]});
 	}
 }

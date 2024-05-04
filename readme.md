@@ -45,14 +45,14 @@ Dispatches an event of the given `type` on the element(s) selected by the given 
 
 ## Event Handling
 
-### `live.trigger(id, event)`
+### `live.forward(id, event)`
 
-Connect and trigger an event on the element with the given `id`. If the connection can't be established, the event will be buffered.
+Connect and forward an event on the element with the given `id`. If the connection can't be established, the event will be buffered.
 
-### `live.forward(id, event, details)`
+### `live.forwardEvent(id, event, details)`
 
 Forward a HTML DOM event to the server. The `details` parameter is optional and can be used to pass additional details to the server.
 
-### `live.forwardFormData(id, event, details)`
+### `live.forwardFormEvent(id, event, details)`
 
 Forward an event which has form data to the server. The `details` parameter is optional and can be used to pass additional details to the server.
