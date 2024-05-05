@@ -1,4 +1,3 @@
-
 import morphdom from 'morphdom';
 
 export class Live {
@@ -31,8 +30,13 @@ export class Live {
 			for (let mutation of mutationsList) {
 				if (mutation.type === 'childList') {
 					for (let node of mutation.removedNodes) {
-						if (node.classList?.contains('bound')) {
+						if (node.classList?.contains('live')) {
 							this.unbind(node);
+						}
+						
+						// Unbind any child nodes:
+						for (let child of node.getElementsByClassName('live')) {
+							this.unbind(child);
 						}
 					}
 					
@@ -40,12 +44,19 @@ export class Live {
 						if (node.classList?.contains('live')) {
 							this.bind(node);
 						}
+						
+						// Bind any child nodes:
+						for (let child of node.getElementsByClassName('live')) {
+							this.bind(child);
+						}
 					}
 				}
 			}
 		});
 		
 		this.observer.observe(this.document.body, {childList: true, subtree: true});
+		
+		this.attach();
 	}
 	
 	// -- Connection Handling --
@@ -74,9 +85,6 @@ export class Live {
 		server.addEventListener('close', () => {
 			// Explicit disconnect will clear `this.server`:
 			if (this.server) {
-				// Detach all bound elements:
-				this.detach();
-				
 				// We need a minimum delay otherwise this can end up immediately invoking the callback:
 				const delay = Math.max(100 * (this.failures + 1) ** 2, 60000);
 				setTimeout(() => this.connect(), delay);
@@ -90,8 +98,6 @@ export class Live {
 	
 	disconnect() {
 		if (this.server) {
-			this.detach();
-			
 			const server = this.server;
 			this.server = null;
 			server.close();
@@ -130,26 +136,20 @@ export class Live {
 	}
 	
 	bind(element) {
-		element.classList.add('bound');
+		console.log("bind", element.id, element.dataset);
 		
 		this.send(JSON.stringify(['bind', element.id, element.dataset]));
 	}
 	
 	unbind(element) {
+		console.log("unbind", element.id, element.dataset);
+		
 		this.send(JSON.stringify(['unbind', element.id]));
 	}
 	
 	attach() {
 		for (let node of this.document.getElementsByClassName('live')) {
 			this.bind(node);
-		}
-		
-		this.flush();
-	}
-	
-	detach() {
-		for (let node of this.document.getElementsByClassName('live')) {
-			node.classList.remove('bound');
 		}
 	}
 	

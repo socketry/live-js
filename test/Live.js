@@ -111,13 +111,14 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
+				console.log("message", payload);
 				if (payload[0] == 'bind') resolve(payload);
 				else console.log("ignoring", payload);
 			});
 		});
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><div id="mychild" class="live"></div></div>', {bind: true}])
+			JSON.stringify(['update', 'my', '<div id="my"><div id="mychild" class="live"></div></div>'])
 		);
 		
 		let payload = await reply;
