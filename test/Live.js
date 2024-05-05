@@ -1,5 +1,5 @@
 import {describe, before, after, it} from 'node:test';
-import {ok, strict, strictEqual} from 'node:assert';
+import {ok, strict, strictEqual, deepStrictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
@@ -13,8 +13,9 @@ describe('Live', function () {
 	const webSocketServerURL = `ws://localhost:${webSocketServerConfig.port}/live`;
 
 	before(async function () {
-		const listening = new Promise(resolve => {
+		const listening = new Promise((resolve, reject) => {
 			webSocketServer = new WebSocket.Server(webSocketServerConfig, resolve);
+			webSocketServer.on('error', reject);
 		});
 		
 		dom = new JSDOM('<!DOCTYPE html><html><body><div id="my"><p>Hello World</p></div></body></html>');
@@ -81,7 +82,7 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
 			});
 		});
 		
@@ -110,7 +111,8 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.bind) resolve(payload);
+				if (payload[0] == 'bind') resolve(payload);
+				else console.log("ignoring", payload);
 			});
 		});
 		
@@ -118,9 +120,41 @@ describe('Live', function () {
 			JSON.stringify(['update', 'my', '<div id="my"><div id="mychild" class="live"></div></div>', {bind: true}])
 		);
 		
-		let binding = await reply;
+		let payload = await reply;
 		
-		strictEqual(binding.bind, 'mychild');
+		deepStrictEqual(payload, ['bind', 'mychild', {}]);
+		
+		live.disconnect();
+	});
+	
+	it('can unbind removed elements', async function () {
+		dom.window.document.body.innerHTML = '<div id="my" class="live"><p>Hello World</p></div>';
+		
+		const live = new Live(dom.window, webSocketServerURL);
+		
+		live.connect();
+		
+		const connected = new Promise(resolve => {
+			webSocketServer.on('connection', resolve);
+		});
+		
+		let socket = await connected;
+		
+		const reply = new Promise((resolve, reject) => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				if (payload[0] == 'unbind') resolve(payload);
+				else console.log("ignoring", payload);
+			});
+		});
+		
+		live.attach();
+		
+		dom.window.document.getElementById('my').remove();
+		
+		let payload = await reply;
+		
+		deepStrictEqual(payload, ['unbind', 'my']);
 		
 		live.disconnect();
 	});
@@ -141,7 +175,8 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
+				else console.log("ignoring", payload);
 			});
 		});
 		
@@ -174,7 +209,8 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
+				else console.log("ignoring", payload);
 			});
 		});
 		
@@ -207,7 +243,8 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
+				else console.log("ignoring", payload);
 			});
 		});
 		
@@ -240,7 +277,7 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
 			});
 		});
 		
@@ -269,7 +306,7 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.reply) resolve(payload);
+				if (payload[0] == 'reply') resolve(payload);
 			});
 		});
 		
@@ -296,7 +333,7 @@ describe('Live', function () {
 		const reply = new Promise((resolve, reject) => {
 			socket.on('message', message => {
 				let payload = JSON.parse(message);
-				if (payload.event) resolve(payload);
+				if (payload[0] == 'event') resolve(payload);
 			});
 		});
 		
@@ -308,8 +345,8 @@ describe('Live', function () {
 		
 		let payload = await reply;
 		
-		strictEqual(payload.id, 'my');
-		strictEqual(payload.event.type, 'click');
+		strictEqual(payload[1], 'my');
+		strictEqual(payload[2].type, 'click');
 		
 		live.disconnect();
 	});

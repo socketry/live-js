@@ -25,6 +25,27 @@ export class Live {
 		// Track visibility state and connect if required:
 		this.document.addEventListener("visibilitychange", () => this.handleVisibilityChange());
 		this.handleVisibilityChange();
+		
+		// Create a MutationObserver to watch for removed nodes
+		this.observer = new this.window.MutationObserver((mutationsList, observer) => {
+			for (let mutation of mutationsList) {
+				if (mutation.type === 'childList') {
+					for (let node of mutation.removedNodes) {
+						if (node.classList?.contains('bound')) {
+							this.unbind(node);
+						}
+					}
+					
+					for (let node of mutation.addedNodes) {
+						if (node.classList?.contains('live')) {
+							this.bind(node);
+						}
+					}
+				}
+			}
+		});
+		
+		this.observer.observe(this.document.body, {childList: true, subtree: true});
 	}
 	
 	// -- Connection Handling --
@@ -36,7 +57,7 @@ export class Live {
 		
 		server.onopen = () => {
 			this.failures = 0;
-			this.attach();
+			this.flush();
 		};
 		
 		server.onmessage = (message) => {
@@ -53,6 +74,9 @@ export class Live {
 		server.addEventListener('close', () => {
 			// Explicit disconnect will clear `this.server`:
 			if (this.server) {
+				// Detach all bound elements:
+				this.detach();
+				
 				// We need a minimum delay otherwise this can end up immediately invoking the callback:
 				const delay = Math.max(100 * (this.failures + 1) ** 2, 60000);
 				setTimeout(() => this.connect(), delay);
@@ -66,6 +90,8 @@ export class Live {
 	
 	disconnect() {
 		if (this.server) {
+			this.detach();
+			
 			const server = this.server;
 			this.server = null;
 			server.close();
@@ -73,11 +99,15 @@ export class Live {
 	}
 	
 	send(message) {
-		try {
-			this.server.send(message);
-		} catch (error) {
-			this.events.push(message);
+		if (this.server) {
+			try {
+				return this.server.send(message);
+			} catch (error) {
+				// Ignore.
+			}
 		}
+		
+		this.events.push(message);
 	}
 	
 	flush() {
@@ -91,20 +121,6 @@ export class Live {
 		}
 	}
 	
-	bind(elements) {
-		for (var element of elements) {
-			this.send(JSON.stringify({bind: element.id, data: element.dataset}));
-		}
-	}
-	
-	bindElementsByClassName(parent = this.document, className = 'live') {
-		this.bind(
-			parent.getElementsByClassName(className)
-		);
-		
-		this.flush();
-	}
-	
 	handleVisibilityChange() {
 		if (this.document.hidden) {
 			this.disconnect();
@@ -113,11 +129,27 @@ export class Live {
 		}
 	}
 	
+	bind(element) {
+		element.classList.add('bound');
+		
+		this.send(JSON.stringify(['bind', element.id, element.dataset]));
+	}
+	
+	unbind(element) {
+		this.send(JSON.stringify(['unbind', element.id]));
+	}
+	
 	attach() {
-		if (this.document.readyState === 'loading') {
-			this.document.addEventListener('DOMContentLoaded', () => this.bindElementsByClassName());
-		} else {
-			this.bindElementsByClassName();
+		for (let node of this.document.getElementsByClassName('live')) {
+			this.bind(node);
+		}
+		
+		this.flush();
+	}
+	
+	detach() {
+		for (let node of this.document.getElementsByClassName('live')) {
+			node.classList.remove('bound');
 		}
 	}
 	
@@ -127,7 +159,7 @@ export class Live {
 	
 	reply(options) {
 		if (options?.reply) {
-			this.send(JSON.stringify({reply: options.reply}));
+			this.send(JSON.stringify(['reply', options.reply]));
 		}
 	}
 	
@@ -138,8 +170,6 @@ export class Live {
 		let fragment = this.createDocumentFragment(html);
 		
 		morphdom(element, fragment);
-		
-		if (options?.bind) this.bindElementsByClassName(element);
 		
 		this.reply(options);
 	}
@@ -195,7 +225,7 @@ export class Live {
 		this.connect();
 		
 		this.send(
-			JSON.stringify({id: id, event: event})
+			JSON.stringify(['event', id, event])
 		);
 	}
 	
