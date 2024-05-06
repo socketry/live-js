@@ -20,6 +20,7 @@ export class Live {
 		this.events = [];
 		
 		this.failures = 0;
+		this.reconnectTimer = null;
 		
 		// Track visibility state and connect if required:
 		this.document.addEventListener("visibilitychange", () => this.handleVisibilityChange());
@@ -72,6 +73,11 @@ export class Live {
 		
 		let server = this.server = new this.window.WebSocket(this.url);
 		
+		if (this.reconnectTimer) {
+			clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
+		}
+		
 		server.onopen = () => {
 			this.failures = 0;
 			this.flush();
@@ -90,13 +96,18 @@ export class Live {
 		
 		server.addEventListener('close', () => {
 			// Explicit disconnect will clear `this.server`:
-			if (this.server) {
+			if (this.server && !this.reconnectTimer) {
 				// We need a minimum delay otherwise this can end up immediately invoking the callback:
 				const delay = Math.max(100 * (this.failures + 1) ** 2, 60000);
-				setTimeout(() => this.connect(), delay);
+				this.reconnectTimer = setTimeout(() => {
+					this.reconnectTimer = null;
+					this.connect();
+				}, delay);
 			}
 			
-			this.server = null;
+			if (this.server === server) {
+				this.server = null;
+			}
 		});
 		
 		return server;
@@ -107,6 +118,11 @@ export class Live {
 			const server = this.server;
 			this.server = null;
 			server.close();
+		}
+		
+		if (this.reconnectTimer) {
+			clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
 		}
 	}
 	
