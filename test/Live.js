@@ -5,6 +5,32 @@ import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
 import {Live} from '../Live.js';
 
+class Queue {
+	constructor() {
+		this.items = [];
+		this.waiting = [];
+	}
+
+	push(item) {
+		if (this.waiting.length > 0) {
+			let resolve = this.waiting.shift();
+			resolve(item);
+		} else {
+			this.items.push(item);
+		}
+	}
+
+	pop() {
+		return new Promise(resolve => {
+			if (this.items.length > 0) {
+				resolve(this.items.shift());
+			} else {
+				this.waiting.push(resolve);
+			}
+		});
+	}
+}
+
 describe('Live', function () {
 	let dom;
 	let webSocketServer;
@@ -18,7 +44,7 @@ describe('Live', function () {
 			webSocketServer.on('error', reject);
 		});
 		
-		dom = new JSDOM('<!DOCTYPE html><html><body><div id="my"><p>Hello World</p></div></body></html>');
+		dom = new JSDOM('<!DOCTYPE html><html><body><div id="my" class="live"><p>Hello World</p></div></body></html>');
 		// Ensure the WebSocket class is available:
 		dom.window.WebSocket = WebSocket;
 		
@@ -49,23 +75,45 @@ describe('Live', function () {
 		live.disconnect();
 	});
 	
-	it('should handle visibility changes', function () {
+	it('should handle visibility changes', async function () {
 		const live = new Live(dom.window, webSocketServerURL);
 		
-		var hidden = false;
+		let hidden = false;
 		Object.defineProperty(dom.window.document, "hidden", {
 			get() {return hidden},
 		});
 		
+		let messages = new Queue();
+		
+		webSocketServer.on('connection', socket => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				messages.push(payload);
+			});
+		});
+		
+		// The document starts out hidden... we have defined a property to make it not hidden, let's propagate that change:
 		live.handleVisibilityChange();
 		
-		ok(live.server);
+		// We should receive a bind message for the live element:
+		let bindPayload = await messages.pop();
+		deepStrictEqual(bindPayload, ['bind', 'my', {}]);
 		
 		hidden = true;
-		
 		live.handleVisibilityChange();
-		
 		ok(!live.server);
+		
+		hidden = false;
+		live.handleVisibilityChange();
+		ok(live.server);
+		
+		debugger;
+		bindPayload = await messages.pop();
+		deepStrictEqual(bindPayload, ['bind', 'my', {}]);
+		
+		live.disconnect();
+		
+		debugger;
 	});
 	
 	it('should handle updates', async function () {
