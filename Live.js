@@ -62,14 +62,14 @@ export class Live {
 		});
 		
 		this.observer.observe(this.document.body, {childList: true, subtree: true});
-		
-		this.attach();
 	}
 	
 	// -- Connection Handling --
 	
 	connect() {
-		if (this.server) return this.server;
+		if (this.server) {
+			return this.server;
+		}
 		
 		let server = this.server = new this.window.WebSocket(this.url);
 		
@@ -81,6 +81,7 @@ export class Live {
 		server.onopen = () => {
 			this.failures = 0;
 			this.flush();
+			this.attach();
 		};
 		
 		server.onmessage = (message) => {
