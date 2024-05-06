@@ -167,7 +167,9 @@ export class Live {
 	unbind(element) {
 		console.log("unbind", element.id, element.dataset);
 		
-		this.send(JSON.stringify(['unbind', element.id]));
+		if (this.server) {
+			this.send(JSON.stringify(['unbind', element.id]));
+		}
 	}
 	
 	attach() {
