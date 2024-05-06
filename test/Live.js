@@ -1,4 +1,4 @@
-import {describe, before, after, it} from 'node:test';
+import {describe, before, beforeEach, after, it} from 'node:test';
 import {ok, strict, strictEqual, deepStrictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
@@ -29,11 +29,24 @@ class Queue {
 			}
 		});
 	}
+	
+	async popUntil(callback) {
+		while (true) {
+			let item = await this.pop();
+			if (callback(item)) return item;
+		}
+	}
+	
+	clear() {
+		this.items = [];
+		this.waiting = [];
+	}
 }
 
 describe('Live', function () {
 	let dom;
 	let webSocketServer;
+	let messages = new Queue();
 
 	const webSocketServerConfig = {port: 3000};
 	const webSocketServerURL = `ws://localhost:${webSocketServerConfig.port}/live`;
@@ -51,6 +64,17 @@ describe('Live', function () {
 		await new Promise(resolve => dom.window.addEventListener('load', resolve));
 		
 		await listening;
+		
+		webSocketServer.on('connection', socket => {
+			socket.on('message', message => {
+				let payload = JSON.parse(message);
+				messages.push(payload);
+			});
+		});
+	});
+	
+	beforeEach(function () {
+		messages.clear();
 	});
 	
 	after(function () {
@@ -83,21 +107,11 @@ describe('Live', function () {
 			get() {return hidden},
 		});
 		
-		let messages = new Queue();
-		
-		webSocketServer.on('connection', socket => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				messages.push(payload);
-			});
-		});
-		
 		// The document starts out hidden... we have defined a property to make it not hidden, let's propagate that change:
 		live.handleVisibilityChange();
 		
 		// We should receive a bind message for the live element:
-		let bindPayload = await messages.pop();
-		deepStrictEqual(bindPayload, ['bind', 'my', {}]);
+		deepStrictEqual(await messages.pop(), ['bind', 'my', {}]);
 		
 		hidden = true;
 		live.handleVisibilityChange();
@@ -107,13 +121,9 @@ describe('Live', function () {
 		live.handleVisibilityChange();
 		ok(live.server);
 		
-		debugger;
-		bindPayload = await messages.pop();
-		deepStrictEqual(bindPayload, ['bind', 'my', {}]);
+		deepStrictEqual(await messages.pop(), ['bind', 'my', {}]);
 		
 		live.disconnect();
-		
-		debugger;
 	});
 	
 	it('should handle updates', async function () {
@@ -127,18 +137,11 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['update', 'my', '<div id="my"><p>Goodbye World!</p></div>', {reply: true}])
 		);
 		
-		await reply;
+		await messages.popUntil(message => message[0] == 'reply');
 		
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
 		
@@ -156,21 +159,11 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				console.log("message", payload);
-				if (payload[0] == 'bind') resolve(payload);
-				else console.log("ignoring", payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['update', 'my', '<div id="my"><div id="mychild" class="live"></div></div>'])
 		);
 		
-		let payload = await reply;
-		
+		let payload = await messages.popUntil(message => message[0] == 'bind');
 		deepStrictEqual(payload, ['bind', 'mychild', {}]);
 		
 		live.disconnect();
@@ -183,26 +176,9 @@ describe('Live', function () {
 		
 		live.connect();
 		
-		const connected = new Promise(resolve => {
-			webSocketServer.on('connection', resolve);
-		});
-		
-		let socket = await connected;
-		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'unbind') resolve(payload);
-				else console.log("ignoring", payload);
-			});
-		});
-		
-		live.attach();
-		
 		dom.window.document.getElementById('my').remove();
 		
-		let payload = await reply;
-		
+		let payload = await messages.popUntil(message => message[0] == 'unbind');
 		deepStrictEqual(payload, ['unbind', 'my']);
 		
 		live.disconnect();
@@ -221,20 +197,11 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-				else console.log("ignoring", payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['replace', '#my p', '<p>Replaced!</p>', {reply: true}])
 		);
 		
-		await reply;
-		
+		await messages.popUntil(message => message[0] == 'reply');
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Replaced!</p>');
 		
 		live.disconnect();
@@ -255,20 +222,11 @@ describe('Live', function () {
 			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
 		);
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-				else console.log("ignoring", payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['prepend', '#my', '<p>Prepended!</p>', {reply: true}])
 		);
 		
-		await reply;
-		
+		await messages.popUntil(message => message[0] == 'reply');
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Prepended!</p><p>Middle</p>');
 		
 		live.disconnect();
@@ -289,20 +247,11 @@ describe('Live', function () {
 			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
 		);
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-				else console.log("ignoring", payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['append', '#my', '<p>Appended!</p>', {reply: true}])
 		);
 		
-		await reply;
-		
+		await messages.popUntil(message => message[0] == 'reply');
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Middle</p><p>Appended!</p>');
 		
 		live.disconnect();
@@ -323,19 +272,11 @@ describe('Live', function () {
 			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
 		);
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['remove', '#my p', {reply: true}])
 		);
 		
-		await reply;
-		
+		await messages.popUntil(message => message[0] == 'reply');
 		strictEqual(dom.window.document.getElementById('my').innerHTML, '');
 		
 		live.disconnect();
@@ -352,18 +293,11 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'reply') resolve(payload);
-			});
-		});
-		
 		socket.send(
 			JSON.stringify(['dispatchEvent', '#my', 'click', {reply: true}])
 		);
 		
-		await reply;
+		await messages.popUntil(message => message[0] == 'reply');
 		
 		live.disconnect();
 	});
@@ -379,21 +313,13 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		const reply = new Promise((resolve, reject) => {
-			socket.on('message', message => {
-				let payload = JSON.parse(message);
-				if (payload[0] == 'event') resolve(payload);
-			});
-		});
-		
 		dom.window.document.getElementById('my').addEventListener('click', event => {
 			live.forwardEvent('my', event);
 		});
 		
 		dom.window.document.getElementById('my').click();
 		
-		let payload = await reply;
-		
+		let payload = await messages.popUntil(message => message[0] == 'event');
 		strictEqual(payload[1], 'my');
 		strictEqual(payload[2].type, 'click');
 		
