@@ -132,7 +132,7 @@ export class Live {
 			try {
 				return this.server.send(message);
 			} catch (error) {
-				// Ignore.
+				// console.log("Live.send", "failed to send message to server", error);
 			}
 		}
 		
