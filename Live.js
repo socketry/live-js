@@ -254,14 +254,14 @@ export class Live {
 		);
 	}
 	
-	forwardEvent(id, event, detail) {
-		event.preventDefault();
+	forwardEvent(id, event, detail, preventDefault = false) {
+		if (preventDefault) event.preventDefault();
 		
 		this.forward(id, {type: event.type, detail: detail});
 	}
 	
-	forwardFormEvent(id, event, detail) {
-		event.preventDefault();
+	forwardFormEvent(id, event, detail, preventDefault = true) {
+		if (preventDefault) event.preventDefault();
 		
 		let form = event.form;
 		let formData = new FormData(form);
