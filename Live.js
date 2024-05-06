@@ -25,11 +25,15 @@ export class Live {
 		this.document.addEventListener("visibilitychange", () => this.handleVisibilityChange());
 		this.handleVisibilityChange();
 		
+		const elementNodeType = this.window.Node.ELEMENT_NODE;
+		
 		// Create a MutationObserver to watch for removed nodes
 		this.observer = new this.window.MutationObserver((mutationsList, observer) => {
 			for (let mutation of mutationsList) {
 				if (mutation.type === 'childList') {
 					for (let node of mutation.removedNodes) {
+						if (node.nodeType !== elementNodeType) continue;
+						
 						if (node.classList?.contains('live')) {
 							this.unbind(node);
 						}
@@ -41,7 +45,9 @@ export class Live {
 					}
 					
 					for (let node of mutation.addedNodes) {
-						if (node.classList?.contains('live')) {
+						if (node.nodeType !== elementNodeType) continue;
+						
+						if (node.classList.contains('live')) {
 							this.bind(node);
 						}
 						
