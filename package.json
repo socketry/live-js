@@ -4,6 +4,9 @@
   "version": "0.14.0",
   "description": "Live HTML tags for Ruby.",
   "main": "Live.js",
+  "files": [
+    "Live.js"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/socketry/live-js.git"

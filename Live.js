@@ -48,6 +48,11 @@ export class Live {
 							this.#unbind(node);
 						}
 						
+						// Cleanup controller if it has a dispose function:
+						if (node.liveController && typeof node.liveController.dispose === 'function') {
+							node.liveController.dispose();
+						}
+						
 						// Unbind any child nodes:
 						for (let child of node.getElementsByClassName('live')) {
 							this.#unbind(child);
@@ -170,6 +175,11 @@ export class Live {
 	#bind(element) {
 		console.log("bind", element.id, element.dataset);
 		
+		// Load controller if specified:
+		if (element.dataset.liveController) {
+			this.#loadControllerForElement(element, element.dataset.liveController);
+		}
+		
 		this.#send(JSON.stringify(['bind', element.id, element.dataset]));
 	}
 	
@@ -184,6 +194,25 @@ export class Live {
 	#attach() {
 		for (let node of this.#document.getElementsByClassName('live')) {
 			this.#bind(node);
+		}
+	}
+	
+	async #loadControllerForElement(element, path) {
+		try {
+			const module = await import(path);
+			let controller = module;
+			
+			// If the module exports a default function, call it with the view element:
+			if (typeof module.default === 'function') {
+				controller = module.default(element);
+			}
+			
+			element.liveController = controller;
+			
+			return controller;
+		} catch (error) {
+			console.error("Failed to load controller:", error);
+			throw error;
 		}
 	}
 	

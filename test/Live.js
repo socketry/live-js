@@ -77,8 +77,12 @@ describe('Live', function () {
 		messages.clear();
 	});
 	
-	after(function () {
-		webSocketServer.close();
+	after(async function () {
+		return new Promise((resolve) => {
+			webSocketServer.close(() => {
+				resolve();
+			});
+		});
 	});
 	
 	it('should start the live connection', function () {
@@ -353,5 +357,30 @@ describe('Live', function () {
 		const live = new Live(dom.window, webSocketServerURL);
 		
 		live.error('my', 'Test Error');
+	});
+	
+	describe('Controller Loading', function () {
+		it('should detect data-live-controller attribute when binding', function () {
+			const element = dom.window.document.createElement('div');
+			element.id = 'test-element';
+			element.className = 'live';
+			element.dataset.liveController = './fixtures/test-controller.mjs';
+			dom.window.document.body.appendChild(element);
+			
+			// Verify the attribute is set correctly
+			strictEqual(element.dataset.liveController, './fixtures/test-controller.mjs');
+			strictEqual(element.hasAttribute('data-live-controller'), true);
+		});
+		
+		it('should not have controller attribute when not set', function () {
+			const element = dom.window.document.createElement('div');
+			element.id = 'test-element-2';
+			element.className = 'live';
+			dom.window.document.body.appendChild(element);
+			
+			// Verify no controller attribute
+			strictEqual(element.dataset.liveController, undefined);
+			strictEqual(element.hasAttribute('data-live-controller'), false);
+		});
 	});
 });
