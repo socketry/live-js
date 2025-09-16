@@ -3,7 +3,13 @@ import {ok, strict, strictEqual, deepStrictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
-import {Live} from '../Live.js';
+
+// We need to have a single global JSDOM because we are testing a sub-class of HTMLElement:
+const DOM = new JSDOM();
+globalThis.HTMLElement = DOM.window.HTMLElement;
+DOM.window.WebSocket = WebSocket;
+
+let {Live, ViewElement} = await import('../Live.js');
 
 class Queue {
 	constructor() {
@@ -44,12 +50,11 @@ class Queue {
 }
 
 describe('Live', function () {
-	let dom;
 	let webSocketServer;
 	let messages = new Queue();
 
 	const webSocketServerConfig = {port: 3000};
-	const webSocketServerURL = `ws://localhost:${webSocketServerConfig.port}/live`;
+	const webSocketServerURL = new URL(`ws://localhost:${webSocketServerConfig.port}/live`);
 
 	before(async function () {
 		const listening = new Promise((resolve, reject) => {
@@ -57,11 +62,9 @@ describe('Live', function () {
 			webSocketServer.on('error', reject);
 		});
 		
-		dom = new JSDOM('<!DOCTYPE html><html><body><div id="my" class="live"><p>Hello World</p></div></body></html>');
-		// Ensure the WebSocket class is available:
-		dom.window.WebSocket = WebSocket;
-		
-		await new Promise(resolve => dom.window.addEventListener('load', resolve));
+		// Define the custom element in the test DOM:
+		DOM.window.customElements.define('live-view', ViewElement);
+		DOM.window.document.body.innerHTML = '<live-view id="my" class="live"><p>Hello World</p></live-view>';
 		
 		await listening;
 		
@@ -74,6 +77,7 @@ describe('Live', function () {
 	});
 	
 	beforeEach(function () {
+		DOM.window.live = null;
 		messages.clear();
 	});
 	
@@ -86,7 +90,8 @@ describe('Live', function () {
 	});
 	
 	it('should start the live connection', function () {
-		const live = Live.start({window: dom.window, base: 'http://localhost/'});
+		const live = Live.start({window: DOM.window, base: 'http://localhost/'});
+		
 		ok(live);
 		
 		strictEqual(live.url.href, 'ws://localhost/live');
@@ -95,7 +100,7 @@ describe('Live', function () {
 	});
 	
 	it('should connect to the WebSocket server', function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		const server = live.connect();
 		ok(server);
@@ -104,7 +109,7 @@ describe('Live', function () {
 	});
 	
 	it('should handle visibility changes', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		// It's tricky to test the method directly.
 		// - Changing document.hidden is a hack.
@@ -122,7 +127,7 @@ describe('Live', function () {
 	});
 	
 	it('can execute scripts', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -145,13 +150,12 @@ describe('Live', function () {
 		
 		let errorReply = await messages.popUntil(message => message[0] == 'reply');
 		strictEqual(errorReply[2], null);
-		console.log(errorReply);
 		
 		live.disconnect();
 	});
 	
 	it('should handle updates', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -162,18 +166,19 @@ describe('Live', function () {
 		let socket = await connected;
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><p>Goodbye World!</p></div>', {reply: true}])
+			JSON.stringify(['update', 'my', '<live-view id="my"><p>Goodbye World!</p></live-view>', {reply: true}])
 		);
 		
 		await messages.popUntil(message => message[0] == 'reply');
 		
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
 		
 		live.disconnect();
 	});
 	
 	it('should handle updates with child live elements', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
+		DOM.window.live = live;
 		
 		live.connect();
 		
@@ -184,27 +189,26 @@ describe('Live', function () {
 		let socket = await connected;
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><div id="mychild" class="live"></div></div>'])
+			JSON.stringify(['update', 'my', '<live-view id="my"><live-view id="mychild" class="live"></live-view></live-view>'])
 		);
 		
-		let payload = await messages.popUntil(message => message[0] == 'bind');
+		let payload = await messages.popUntil(message => message[0] == 'bind' && message[1] == 'mychild');
 		deepStrictEqual(payload, ['bind', 'mychild', {}]);
 		
 		live.disconnect();
 	});
 	
 	it('can unbind removed elements', async function () {
-		dom.window.document.body.innerHTML = '<div id="my" class="live"><p>Hello World</p></div>';
-		
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
+		DOM.window.live = live;
 		
 		live.connect();
 		
-		dom.window.document.getElementById('my').remove();
+		DOM.window.document.body.innerHTML = '<live-view id="my" class="live"><p>Hello World</p></live-view>';
 		
-		let payload = await messages.popUntil(message => {
-			return message[0] == 'unbind' && message[1] == 'my';
-		});
+		DOM.window.document.getElementById('my').remove();
+		
+		let payload = await messages.popUntil(message => message[0] == 'unbind' && message[1] == 'my');
 		
 		deepStrictEqual(payload, ['unbind', 'my']);
 		
@@ -212,9 +216,9 @@ describe('Live', function () {
 	});
 	
 	it('should handle replacements', async function () {
-		dom.window.document.body.innerHTML = '<div id="my"><p>Hello World</p></div>';
+		DOM.window.document.body.innerHTML = '<live-view id="my"><p>Hello World</p></live-view>';
 		
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -229,13 +233,13 @@ describe('Live', function () {
 		);
 		
 		await messages.popUntil(message => message[0] == 'reply');
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Replaced!</p>');
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Replaced!</p>');
 		
 		live.disconnect();
 	});
 	
 	it('should handle prepends', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -246,7 +250,7 @@ describe('Live', function () {
 		let socket = await connected;
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+			JSON.stringify(['update', 'my', '<live-view id="my"><p>Middle</p></live-view>'])
 		);
 		
 		socket.send(
@@ -254,13 +258,13 @@ describe('Live', function () {
 		);
 		
 		await messages.popUntil(message => message[0] == 'reply');
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Prepended!</p><p>Middle</p>');
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Prepended!</p><p>Middle</p>');
 		
 		live.disconnect();
 	});
 	
 	it('should handle appends', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -271,7 +275,7 @@ describe('Live', function () {
 		let socket = await connected;
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+			JSON.stringify(['update', 'my', '<live-view id="my"><p>Middle</p></live-view>'])
 		);
 		
 		socket.send(
@@ -279,13 +283,13 @@ describe('Live', function () {
 		);
 		
 		await messages.popUntil(message => message[0] == 'reply');
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '<p>Middle</p><p>Appended!</p>');
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Middle</p><p>Appended!</p>');
 		
 		live.disconnect();
 	});
 	
 	it ('should handle removals', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -296,7 +300,7 @@ describe('Live', function () {
 		let socket = await connected;
 		
 		socket.send(
-			JSON.stringify(['update', 'my', '<div id="my"><p>Middle</p></div>'])
+			JSON.stringify(['update', 'my', '<live-view id="my"><p>Middle</p></live-view>'])
 		);
 		
 		socket.send(
@@ -304,13 +308,13 @@ describe('Live', function () {
 		);
 		
 		await messages.popUntil(message => message[0] == 'reply');
-		strictEqual(dom.window.document.getElementById('my').innerHTML, '');
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '');
 		
 		live.disconnect();
 	});
 	
 	it ('can dispatch custom events', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -330,7 +334,7 @@ describe('Live', function () {
 	});
 	
 	it ('can forward events', async function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.connect();
 		
@@ -340,11 +344,11 @@ describe('Live', function () {
 		
 		let socket = await connected;
 		
-		dom.window.document.getElementById('my').addEventListener('click', event => {
+		DOM.window.document.getElementById('my').addEventListener('click', event => {
 			live.forwardEvent('my', event);
 		});
 		
-		dom.window.document.getElementById('my').click();
+		DOM.window.document.getElementById('my').click();
 		
 		let payload = await messages.popUntil(message => message[0] == 'event');
 		strictEqual(payload[1], 'my');
@@ -354,33 +358,8 @@ describe('Live', function () {
 	});
 	
 	it ('can log errors', function () {
-		const live = new Live(dom.window, webSocketServerURL);
+		const live = new Live(DOM.window, webSocketServerURL);
 		
 		live.error('my', 'Test Error');
-	});
-	
-	describe('Controller Loading', function () {
-		it('should detect data-live-controller attribute when binding', function () {
-			const element = dom.window.document.createElement('div');
-			element.id = 'test-element';
-			element.className = 'live';
-			element.dataset.liveController = './fixtures/test-controller.mjs';
-			dom.window.document.body.appendChild(element);
-			
-			// Verify the attribute is set correctly
-			strictEqual(element.dataset.liveController, './fixtures/test-controller.mjs');
-			strictEqual(element.hasAttribute('data-live-controller'), true);
-		});
-		
-		it('should not have controller attribute when not set', function () {
-			const element = dom.window.document.createElement('div');
-			element.id = 'test-element-2';
-			element.className = 'live';
-			dom.window.document.body.appendChild(element);
-			
-			// Verify no controller attribute
-			strictEqual(element.dataset.liveController, undefined);
-			strictEqual(element.hasAttribute('data-live-controller'), false);
-		});
 	});
 });
