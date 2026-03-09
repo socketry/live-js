@@ -126,6 +126,27 @@ describe('Live', function () {
 		live.disconnect();
 	});
 	
+	it('should not send duplicate bind on reconnect', async function () {
+		const live = new Live(DOM.window, webSocketServerURL);
+		DOM.window.live = live;
+		
+		live.connect();
+		deepStrictEqual(await messages.pop(), ['bind', 'my', {}]);
+		
+		live.disconnect();
+		live.connect();
+		deepStrictEqual(await messages.pop(), ['bind', 'my', {}]);
+		
+		// Ensure no second bind arrives within a short window:
+		const second = await Promise.race([
+			messages.pop(),
+			new Promise(resolve => setTimeout(() => resolve('timeout'), 100))
+		]);
+		strictEqual(second, 'timeout');
+		
+		live.disconnect();
+	});
+	
 	it('can execute scripts', async function () {
 		const live = new Live(DOM.window, webSocketServerURL);
 		
@@ -205,6 +226,8 @@ describe('Live', function () {
 		live.connect();
 		
 		DOM.window.document.body.innerHTML = '<live-view id="my" class="live"><p>Hello World</p></live-view>';
+		
+		await messages.popUntil(message => message[0] == 'bind' && message[1] == 'my');
 		
 		DOM.window.document.getElementById('my').remove();
 		
