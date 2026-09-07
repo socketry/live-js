@@ -409,7 +409,7 @@ describe('Live', function () {
 			{
 				type: 'submit',
 				detail: {source: 'test'},
-				formData: [
+				form_data: [
 					['title', 'Hello World'],
 					['action', 'save'],
 				],

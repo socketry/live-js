@@ -302,6 +302,6 @@ export class Live {
 			new this.#window.FormData(form, event.submitter) :
 			new this.#window.FormData(form);
 		
-		this.forward(id, {type: event.type, detail: detail, formData: [...formData]});
+		this.forward(id, {type: event.type, detail: detail, form_data: [...formData]});
 	}
 }
