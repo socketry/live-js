@@ -380,6 +380,45 @@ describe('Live', function () {
 		live.disconnect();
 	});
 	
+	it ('can forward form events', async function () {
+		DOM.window.document.body.innerHTML = `
+			<form id="my-form">
+				<input name="title" value="Hello World">
+				<button type="submit" name="action" value="save">Save</button>
+			</form>
+		`;
+		
+		const live = new Live(DOM.window, webSocketServerURL);
+		const form = DOM.window.document.getElementById('my-form');
+		const submitter = form.querySelector('button');
+		
+		form.addEventListener('submit', event => {
+			live.forwardFormEvent('my-form', event, {source: 'test'});
+		});
+		
+		form.dispatchEvent(new DOM.window.SubmitEvent('submit', {
+			bubbles: true,
+			cancelable: true,
+			submitter: submitter,
+		}));
+		
+		let payload = await messages.popUntil(message => message[0] == 'event');
+		deepStrictEqual(payload, [
+			'event',
+			'my-form',
+			{
+				type: 'submit',
+				detail: {source: 'test'},
+				formData: [
+					['title', 'Hello World'],
+					['action', 'save'],
+				],
+			},
+		]);
+		
+		live.disconnect();
+	});
+	
 	it ('can log errors', function () {
 		const live = new Live(DOM.window, webSocketServerURL);
 		
