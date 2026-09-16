@@ -3,6 +3,7 @@ import {ok, strict, strictEqual, deepStrictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
+import morphdom from 'morphdom';
 
 // We need to have a single global JSDOM because we are testing a sub-class of HTMLElement:
 const DOM = new JSDOM();
@@ -194,6 +195,71 @@ describe('Live', function () {
 		
 		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Goodbye World!</p>');
 		
+		live.disconnect();
+	});
+
+	it('delegates updates to an element implementing morph', function () {
+		DOM.window.document.body.innerHTML = '<div id="my"><p>Hello World</p></div>';
+		const live = new Live(DOM.window, webSocketServerURL);
+		const element = DOM.window.document.getElementById('my');
+		let receivedOptions = null;
+
+		element.morph = (fragment, options) => {
+			receivedOptions = options;
+			return morphdom(element, fragment);
+		};
+
+		live.update('my', '<div id="my"><p>Updated</p></div>', {custom: true});
+
+		deepStrictEqual(receivedOptions, {custom: true});
+		strictEqual(element.innerHTML, '<p>Updated</p>');
+		live.disconnect();
+	});
+
+	it('continues to update ordinary elements directly', function () {
+		DOM.window.document.body.innerHTML = '<div id="my"><p>Hello World</p></div>';
+		const live = new Live(DOM.window, webSocketServerURL);
+
+		live.update('my', '<div id="my"><p>Updated</p></div>');
+
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Updated</p>');
+		live.disconnect();
+	});
+
+	it('waits for an asynchronous view morph before replying', async function () {
+		DOM.window.document.body.innerHTML = '<live-view id="my"><p>Hello World</p></live-view>';
+		const live = new Live(DOM.window, webSocketServerURL);
+		live.connect();
+		await messages.popUntil(message => message[0] == 'bind' && message[1] == 'my');
+
+		const element = DOM.window.document.getElementById('my');
+		const defaultMorph = element.morph.bind(element);
+		let release;
+		const ready = new Promise(resolve => release = resolve);
+		let started;
+		const morphStarted = new Promise(resolve => started = resolve);
+
+		element.morph = async (fragment, options) => {
+			defaultMorph(fragment, options);
+			started();
+			await ready;
+		};
+
+		let replied = false;
+		const reply = messages.popUntil(message => message[0] == 'reply').then(message => {
+			replied = true;
+			return message;
+		});
+
+		const update = live.update('my', '<live-view id="my"><p>Updated</p></live-view>', {reply: 'update'});
+		await morphStarted;
+		strictEqual(element.innerHTML, '<p>Updated</p>');
+		strictEqual(replied, false);
+
+		release();
+		await update;
+		deepStrictEqual(await reply, ['reply', 'update']);
+
 		live.disconnect();
 	});
 	

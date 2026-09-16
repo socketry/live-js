@@ -33,6 +33,23 @@ const live = Live.start({
 });
 ```
 
+### Customizing Live View Updates
+
+When an update target implements `morph(fragment, options)`, Live.js delegates reconciliation to that method. Otherwise, it updates the target directly with morphdom. `ViewElement` provides the standard morphdom implementation, while other elements may opt in without inheriting from a particular class.
+
+```javascript
+class PresentationView extends ViewElement {
+  async morph(fragment, options = {}) {
+    super.morph(fragment, options);
+    await this.initializeSlides();
+  }
+}
+```
+
+Live.js waits for a promise returned by `morph()` before sending a requested protocol reply. The component owns any ordering or cancellation policy for overlapping asynchronous updates.
+
+The hook belongs to the element directly targeted by `Live.update()`. A parent morph reconciles its light-DOM descendants as one operation; morphdom preserves nested elements with stable IDs and matching tag names. Components requiring an isolated rendering boundary can use Shadow DOM.
+
 ### Controller Loading
 
 Live.js supports declarative controller loading using the `data-live-controller` attribute:
@@ -61,6 +78,10 @@ export default function(element) {
 ```
 
 ## API Reference
+
+### ViewElement Class
+
+- `morph(fragment, options)` - Reconcile the view with a new document fragment. The default implementation uses morphdom directly; overrides may return a promise for asynchronous rendering.
 
 ### Live Class
 
