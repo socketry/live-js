@@ -12,6 +12,8 @@ A JavaScript client library for building interactive web applications with Ruby 
 - **Controller Loading**: Declarative JavaScript controller loading with `data-live-controller`.
 - **Automatic Cleanup**: Proper lifecycle management and memory cleanup.
 - **Live Elements**: Automatic binding and unbinding of live elements.
+- **Lifecycle-aware Views**: Connection-scoped cancellation for listeners and asynchronous work.
+- **View Transitions**: Optional progressive enhancement for coordinated UI updates.
 
 ## Usage
 
@@ -33,6 +35,28 @@ const live = Live.start({
 });
 ```
 
+### Lifecycle-aware Live Views
+
+`ViewElement` provides an `AbortSignal` scoped to its current connection to the document. The signal is aborted when the element disconnects and renewed if it reconnects.
+
+```javascript
+import {ViewElement} from '@socketry/live';
+
+class SearchResults extends ViewElement {
+  connectedCallback() {
+    super.connectedCallback();
+
+    this.addEventListener('input', this.refresh, {signal: this.signal});
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+  }
+}
+```
+
+Subclasses implementing `connectedCallback()` or `disconnectedCallback()` must invoke the corresponding superclass method. Pass `this.signal` to browser APIs which accept an `AbortSignal`, and explicitly settle promises waiting for APIs which do not.
+
 ### Customizing Live View Updates
 
 When an update target implements `morph(fragment, options)`, Live.js delegates reconciliation to that method. Otherwise, it updates the target directly with morphdom. `ViewElement` provides the standard morphdom implementation, while other elements may opt in without inheriting from a particular class.
@@ -49,6 +73,41 @@ class PresentationView extends ViewElement {
 `morph()` is synchronous: implementations should complete DOM reconciliation before returning, after which Live.js sends any requested protocol reply.
 
 The hook belongs to the element directly targeted by `Live.update()`. A parent morph reconciles its light-DOM descendants as one operation; morphdom preserves nested elements with stable IDs and matching tag names. Components requiring an isolated rendering boundary can use Shadow DOM.
+
+### View Transitions
+
+The optional `transitionView(update, options)` helper applies an update through the browser View Transition API. The update may return a promise; the browser does not capture the new visual state until it settles.
+
+```javascript
+import {ViewElement} from '@socketry/live';
+import {transitionView} from '@socketry/live/Transition';
+
+class AudioPlayer extends ViewElement {
+  async load(source) {
+    await transitionView(async () => {
+      this.audio.src = source;
+      await mediaReady(this.audio, this.signal);
+    }, {document: this.ownerDocument, signal: this.signal});
+  }
+}
+```
+
+The helper treats View Transitions as progressive enhancement:
+
+- The application update always runs exactly once.
+- Hidden documents and browsers without View Transitions update immediately.
+- Disconnecting the owning view skips the visual transition without undoing the update.
+- Errors from the application update are still reported to the caller.
+
+#### Best Practices
+
+- Render a stable structure first; transitions should not conceal avoidable layout shifts.
+- Use morphdom to preserve element identity, and transitions only for meaningful visual state changes.
+- Resolve asynchronous readiness from lifecycle events rather than arbitrary timeouts.
+- Keep transition names, animation timing, and reduced-motion behavior in application CSS.
+- Let the outermost view coordinating an update own its transition; avoid nested View Transitions.
+- Keep the transition owner connected for the complete update. When replacing a child, its stable parent should own the transition.
+- Initial rendering has no previous browser snapshot. Render complete markup or a correctly sized stable shell.
 
 ### Controller Loading
 
@@ -81,7 +140,17 @@ export default function(element) {
 
 ### ViewElement Class
 
+- `signal` - `AbortSignal` for the element's current connection lifetime.
 - `morph(fragment, options)` - Synchronously reconcile the view with a new document fragment. The default implementation uses morphdom directly.
+
+### View Transition Extension
+
+Import this optional helper from `@socketry/live/Transition`.
+
+- `transitionView(update, options)` - Apply a synchronous or asynchronous update with progressive View Transition enhancement.
+  - `update` - Function performing the application update. Its return value is returned to the caller; a returned promise delays capture of the new visual state.
+  - `options.document` - Document which owns the transition (defaults to `globalThis.document`).
+  - `options.signal` - Optional lifecycle signal. Aborting it skips the visual transition without suppressing the update.
 
 ### Live Class
 

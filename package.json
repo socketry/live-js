@@ -5,10 +5,12 @@
   "description": "Live HTML tags for Ruby.",
   "main": "Live.js",
   "exports": {
-    ".": "./Live.js"
+    ".": "./Live.js",
+    "./Transition": "./Transition.js"
   },
   "files": [
-    "Live.js"
+    "Live.js",
+    "Transition.js"
   ],
   "repository": {
     "type": "git",

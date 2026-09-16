@@ -4,8 +4,19 @@ import morphdom from 'morphdom';
 export class ViewElement extends HTMLElement {
 	static observedAttributes = [];
 	static connectedElements = new Set();
+
+	#abortController = this.#createAbortController();
+
+	#createAbortController() {
+		const AbortController = this.ownerDocument?.defaultView?.AbortController || globalThis.AbortController;
+		return new AbortController();
+	}
 	
 	connectedCallback() {
+		if (this.#abortController.signal.aborted) {
+			this.#abortController = this.#createAbortController();
+		}
+
 		if (!this.id) {
 			this.id = crypto.randomUUID();
 		}
@@ -19,12 +30,19 @@ export class ViewElement extends HTMLElement {
 	}
 	
 	disconnectedCallback() {
+		this.#abortController.abort();
+
 		ViewElement.connectedElements.delete(this);
 		
 		const window = this.ownerDocument.defaultView;
 		if (window && window.live) {
 			window.live.unbind(this);
 		}
+	}
+
+	// An AbortSignal which remains active for the current connection lifetime.
+	get signal() {
+		return this.#abortController.signal;
 	}
 
 	// Reconcile this view with a new fragment. Subclasses may override this method
