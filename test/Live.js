@@ -226,44 +226,8 @@ describe('Live', function () {
 		live.disconnect();
 	});
 
-	it('waits for an asynchronous view morph before replying', async function () {
-		DOM.window.document.body.innerHTML = '<live-view id="my"><p>Hello World</p></live-view>';
-		const live = new Live(DOM.window, webSocketServerURL);
-		live.connect();
-		await messages.popUntil(message => message[0] == 'bind' && message[1] == 'my');
-
-		const element = DOM.window.document.getElementById('my');
-		const defaultMorph = element.morph.bind(element);
-		let release;
-		const ready = new Promise(resolve => release = resolve);
-		let started;
-		const morphStarted = new Promise(resolve => started = resolve);
-
-		element.morph = async (fragment, options) => {
-			defaultMorph(fragment, options);
-			started();
-			await ready;
-		};
-
-		let replied = false;
-		const reply = messages.popUntil(message => message[0] == 'reply').then(message => {
-			replied = true;
-			return message;
-		});
-
-		const update = live.update('my', '<live-view id="my"><p>Updated</p></live-view>', {reply: 'update'});
-		await morphStarted;
-		strictEqual(element.innerHTML, '<p>Updated</p>');
-		strictEqual(replied, false);
-
-		release();
-		await update;
-		deepStrictEqual(await reply, ['reply', 'update']);
-
-		live.disconnect();
-	});
-	
 	it('should handle updates with child live elements', async function () {
+		DOM.window.document.body.innerHTML = '<live-view id="my"></live-view>';
 		const live = new Live(DOM.window, webSocketServerURL);
 		DOM.window.live = live;
 		

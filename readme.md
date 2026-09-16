@@ -39,14 +39,14 @@ When an update target implements `morph(fragment, options)`, Live.js delegates r
 
 ```javascript
 class PresentationView extends ViewElement {
-  async morph(fragment, options = {}) {
+  morph(fragment, options = {}) {
     super.morph(fragment, options);
-    await this.initializeSlides();
+    this.updateLayout();
   }
 }
 ```
 
-Live.js waits for a promise returned by `morph()` before sending a requested protocol reply. The component owns any ordering or cancellation policy for overlapping asynchronous updates.
+`morph()` is synchronous: implementations should complete DOM reconciliation before returning, after which Live.js sends any requested protocol reply.
 
 The hook belongs to the element directly targeted by `Live.update()`. A parent morph reconciles its light-DOM descendants as one operation; morphdom preserves nested elements with stable IDs and matching tag names. Components requiring an isolated rendering boundary can use Shadow DOM.
 
@@ -81,7 +81,7 @@ export default function(element) {
 
 ### ViewElement Class
 
-- `morph(fragment, options)` - Reconcile the view with a new document fragment. The default implementation uses morphdom directly; overrides may return a promise for asynchronous rendering.
+- `morph(fragment, options)` - Synchronously reconcile the view with a new document fragment. The default implementation uses morphdom directly.
 
 ### Live Class
 

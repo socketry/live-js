@@ -28,7 +28,7 @@ export class ViewElement extends HTMLElement {
 	}
 
 	// Reconcile this view with a new fragment. Subclasses may override this method
-	// to coordinate custom rendering and asynchronous initialization.
+	// to customize synchronous rendering.
 	morph(fragment, options = {}) {
 		return morphdom(this, fragment);
 	}
@@ -100,13 +100,7 @@ export class Live {
 		
 		server.onmessage = (message) => {
 			const [name, ...args] = JSON.parse(message.data);
-
-			try {
-				const result = this[name](...args);
-				result?.catch?.(error => this.error(error));
-			} catch (error) {
-				this.error(error);
-			}
+			this[name](...args);
 		};
 		
 		// The remote end has disconnected:
@@ -235,22 +229,13 @@ export class Live {
 		let element = this.#document.getElementById(id);
 		let fragment = this.#createDocumentFragment(html);
 
-		let result;
 		if (typeof element.morph === 'function') {
-			result = element.morph(fragment, options);
+			element.morph(fragment, options);
 		} else {
-			result = morphdom(element, fragment);
+			morphdom(element, fragment);
 		}
 
-		if (result?.then) {
-			return result.then(value => {
-				this.#reply(options);
-				return value;
-			});
-		} else {
-			this.#reply(options);
-			return result;
-		}
+		this.#reply(options);
 	}
 	
 	replace(selector, html, options) {
