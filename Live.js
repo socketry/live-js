@@ -26,6 +26,12 @@ export class ViewElement extends HTMLElement {
 			window.live.unbind(this);
 		}
 	}
+
+	// Reconcile this view with a new fragment. Subclasses may override this method
+	// to customize synchronous rendering.
+	morph(fragment, options = {}) {
+		return morphdom(this, fragment);
+	}
 }
 
 export class Live {
@@ -94,7 +100,6 @@ export class Live {
 		
 		server.onmessage = (message) => {
 			const [name, ...args] = JSON.parse(message.data);
-			
 			this[name](...args);
 		};
 		
@@ -223,9 +228,13 @@ export class Live {
 	update(id, html, options) {
 		let element = this.#document.getElementById(id);
 		let fragment = this.#createDocumentFragment(html);
-		
-		morphdom(element, fragment);
-		
+
+		if (typeof element.morph === 'function') {
+			element.morph(fragment, options);
+		} else {
+			morphdom(element, fragment);
+		}
+
 		this.#reply(options);
 	}
 	

@@ -3,6 +3,7 @@ import {ok, strict, strictEqual, deepStrictEqual} from 'node:assert';
 
 import {WebSocket} from 'ws';
 import {JSDOM} from 'jsdom';
+import morphdom from 'morphdom';
 
 // We need to have a single global JSDOM because we are testing a sub-class of HTMLElement:
 const DOM = new JSDOM();
@@ -196,8 +197,37 @@ describe('Live', function () {
 		
 		live.disconnect();
 	});
-	
+
+	it('delegates updates to an element implementing morph', function () {
+		DOM.window.document.body.innerHTML = '<div id="my"><p>Hello World</p></div>';
+		const live = new Live(DOM.window, webSocketServerURL);
+		const element = DOM.window.document.getElementById('my');
+		let receivedOptions = null;
+
+		element.morph = (fragment, options) => {
+			receivedOptions = options;
+			return morphdom(element, fragment);
+		};
+
+		live.update('my', '<div id="my"><p>Updated</p></div>', {custom: true});
+
+		deepStrictEqual(receivedOptions, {custom: true});
+		strictEqual(element.innerHTML, '<p>Updated</p>');
+		live.disconnect();
+	});
+
+	it('continues to update ordinary elements directly', function () {
+		DOM.window.document.body.innerHTML = '<div id="my"><p>Hello World</p></div>';
+		const live = new Live(DOM.window, webSocketServerURL);
+
+		live.update('my', '<div id="my"><p>Updated</p></div>');
+
+		strictEqual(DOM.window.document.getElementById('my').innerHTML, '<p>Updated</p>');
+		live.disconnect();
+	});
+
 	it('should handle updates with child live elements', async function () {
+		DOM.window.document.body.innerHTML = '<live-view id="my"></live-view>';
 		const live = new Live(DOM.window, webSocketServerURL);
 		DOM.window.live = live;
 		
